@@ -14,6 +14,16 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 -->
+
+This extension adds a couple of flags to enable users to warn/fail the build if the shade plugin
+is instructed to shade dependencies where the artifact version does not contain some specified
+string.
+
+
+Additional configuration options:
+- `-DshadeRequireArtifactVersionContains=yourstring`: optional, if specifed and non-empty, check all artifacts to be shaded have a version containing this string - case sensitive.
+- `-DshadeFailOnEnforcementViolation=true`: optional, default true. If true, fail the build on any artifact version violations, else only warning logs will be emitted.
+
 Contributing to [Apache Maven Shade Plugin](https://maven.apache.org/plugins/maven-shade-plugin/)
 ======================
 

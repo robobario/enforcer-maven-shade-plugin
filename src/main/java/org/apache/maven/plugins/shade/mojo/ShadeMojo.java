@@ -35,6 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.maven.RepositoryUtils;
 import org.apache.maven.artifact.Artifact;
@@ -390,6 +391,12 @@ public class ShadeMojo extends AbstractMojo {
     @Parameter(defaultValue = "false")
     private boolean skip;
 
+    @Parameter(defaultValue = "true", property = "shadeFailOnEnforcementViolation")
+    private boolean failOnEnforcementViolation;
+
+    @Parameter(defaultValue = "", property = "shadeRequireArtifactVersionContains")
+    private String shadeRequireArtifactVersionContains;
+
     @Inject
     private MavenProjectHelper projectHelper;
 
@@ -430,6 +437,7 @@ public class ShadeMojo extends AbstractMojo {
         setupHintedShader();
 
         Set<File> artifacts = new LinkedHashSet<>();
+        Set<Artifact> includedArtifacts = new LinkedHashSet<>();
         Set<String> artifactIds = new LinkedHashSet<>();
         Set<File> sourceArtifacts = new LinkedHashSet<>();
         Set<File> testArtifacts = new LinkedHashSet<>();
@@ -446,6 +454,7 @@ public class ShadeMojo extends AbstractMojo {
             }
 
             artifacts.add(project.getArtifact().getFile());
+            includedArtifacts.add(project.getArtifact());
 
             if (createSourcesJar) {
                 File file = shadedSourcesArtifactFile();
@@ -470,7 +479,7 @@ public class ShadeMojo extends AbstractMojo {
         }
 
         processArtifactSelectors(
-                artifacts, artifactIds, sourceArtifacts, testArtifacts, testSourceArtifacts, artifactSelector);
+                artifacts, includedArtifacts, artifactIds, sourceArtifacts, testArtifacts, testSourceArtifacts, artifactSelector);
 
         File outputJar = (outputFile != null) ? outputFile : shadedArtifactFileWithClassifier();
         File sourcesJar = shadedSourceArtifactFileWithClassifier();
@@ -479,6 +488,8 @@ public class ShadeMojo extends AbstractMojo {
 
         // Now add our extra resources
         try {
+            enforce(includedArtifacts);
+
             List<Filter> filters = getFilters();
 
             List<Relocator> relocators = getRelocators();
@@ -625,6 +636,23 @@ public class ShadeMojo extends AbstractMojo {
         }
     }
 
+    private void enforce(Set<Artifact> includedArtifacts) throws MojoExecutionException {
+        if (shadeRequireArtifactVersionContains != null && !shadeRequireArtifactVersionContains.isEmpty()) {
+            List<Artifact> invalid = includedArtifacts.stream()
+                    .filter(artifact -> !artifact.getVersion().contains(shadeRequireArtifactVersionContains))
+                    .collect(Collectors.toList());
+            if (!invalid.isEmpty()) {
+                for (Artifact artifact : invalid) {
+                    getLog().warn("artifact " + artifact + " version did not contain " + shadeRequireArtifactVersionContains);
+                }
+                if (failOnEnforcementViolation) {
+                    String collect = invalid.stream().map(Object::toString).collect(Collectors.joining(","));
+                    throw new MojoExecutionException("some artefacts contained non-compliant versions [" + collect + "]");
+                }
+            }
+        }
+    }
+
     private void createErrorOutput() {
         getLog().error("The project main artifact does not exist. This could have the following");
         getLog().error("reasons:");
@@ -679,6 +707,7 @@ public class ShadeMojo extends AbstractMojo {
 
     private void processArtifactSelectors(
             Set<File> artifacts,
+            Set<Artifact> includedArtifacts,
             Set<String> artifactIds,
             Set<File> sourceArtifacts,
             Set<File> testArtifacts,
@@ -706,6 +735,7 @@ public class ShadeMojo extends AbstractMojo {
             getLog().info("Including " + artifact.getId() + " in the shaded jar.");
 
             artifacts.add(artifact.getFile());
+            includedArtifacts.add(artifact);
             artifactIds.add(getId(artifact));
 
             if (createSourcesJar) {
