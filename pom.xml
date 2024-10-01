@@ -27,7 +27,7 @@
     <relativePath />
   </parent>
 
-  <groupId>com.robobario.shade</groupId>
+  <groupId>com.github.robobario.shade</groupId>
   <artifactId>enforcer-maven-shade-plugin</artifactId>
   <version>3.5.1</version>
   <packaging>maven-plugin</packaging>
